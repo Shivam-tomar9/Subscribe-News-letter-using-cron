@@ -1,0 +1,91 @@
+//We Have on cron in our cpanel which is automatic run after every 5 min
+//Cron Controller
+<?php
+
+
+
+namespace App\Http\Controllers;
+
+
+
+use Illuminate\Http\Request;
+
+use App\Models\Blog;
+
+use Carbon\Carbon;
+
+use App\models\Webscodata;
+
+use DB;
+
+use Mail;
+
+
+
+class CronController extends Controller{
+
+   
+
+    // send subscription mail to users
+
+    public function sendBlogSubscriptionMail(Request $request){
+
+        $blogs = DB::connection('second_database')->table('wp_posts')->where('post_type', 'post')->where('post_status', 'publish')->where('cron_sent_status', 0)->get();
+
+        if($blogs->count()>0){
+
+            foreach($blogs as $blog){
+
+                $subscriptionMails = DB::table('subscribers')->groupBy('email')->limit(1)->get();
+
+                if($subscriptionMails->count()>0){
+
+                    foreach($subscriptionMails as $subscriptionMail){
+
+                        // mail function 
+
+                        $data = [
+
+                            'blog' => $blog,    
+
+                        ];
+
+                        
+
+                        Mail::send('common.subscription-mail', $data, function ($message) use ($subscriptionMail) {
+
+                            $message->to($subscriptionMail->email);
+
+                            
+
+                            // $message->to('shivam@pearlorganisation.com');
+
+                            $message->subject('New Blog | GreatInflux '. date('d-m-Y : H:i A'));
+
+                        });
+
+                        // then update the blog table cron_sent_status will be 1
+
+                        DB::connection('second_database')->table('wp_posts')->where('post_type', 'post')->where('post_status', 'publish')->where('ID', $blog->ID)->update(['cron_sent_status'=>1]);
+
+                    }
+
+                }
+
+            }
+
+        }
+
+
+    }
+
+    
+
+}
+// cron routes
+Route::get('send-blog-subscription-mail', 'App\Http\Controllers\CronController@sendBlogSubscriptionMail');
+//Also we have to a one folder name cron and inside create a file  blog-subscription-mail.php
+<?php
+    header('Location: https://greatinflux.com/send-blog-subscription-mail');
+?>
+//now give them a path in cron(cpanel) public/cron/blog-subscription-mail.php
